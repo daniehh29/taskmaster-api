@@ -43,7 +43,7 @@ def save_project():
             new_project.to_dict()
         ), 201
     except Exception as e:
-        db.session_rollback()
+        db.session.rollback()
         return jsonify({
             "error": str(e)
         }), 500
@@ -107,6 +107,7 @@ def edit_project_task(id: int):
         task.status = new_status
         db.session.commit()
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             "error": str(e)
         }), 500
