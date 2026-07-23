@@ -1,6 +1,6 @@
 from task_master import db
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Status(Enum):
@@ -29,7 +29,7 @@ class Project(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     name        = db.Column(db.String(20), unique=True, nullable=False)
     description = db.Column(db.String(250), unique=False, nullable=True)
-    created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     tasks       = db.relationship('Task', backref='project', lazy=True)
 
     def to_dict(self):

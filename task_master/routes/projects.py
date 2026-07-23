@@ -1,15 +1,18 @@
-from task_master import app, db
+from task_master import db
 from task_master.models import Project, Task, Status
-from flask import jsonify, request
+from flask import jsonify, request, Blueprint
 
 
-@app.route("/projects", methods=["GET"])
+projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
+
+
+@projects_bp.route("/", methods=["GET"])
 def get_projects():
     projects = Project.query.all()
     return jsonify([project.to_dict() for project in projects]), 200
 
 
-@app.route("/projects/<int:id>", methods=["GET"])
+@projects_bp.route("/<int:id>", methods=["GET"])
 def get_project(id: int):
     project = Project.query.filter(Project.id == id).first()
     if not project:
@@ -21,7 +24,7 @@ def get_project(id: int):
     ), 200
 
 
-@app.route("/projects", methods=["POST"])
+@projects_bp.route("/", methods=["POST"])
 def save_project():
     data = request.get_json()
 
@@ -49,7 +52,7 @@ def save_project():
         }), 500
 
 
-@app.route("/projects/<int:id>/tasks", methods=["POST"])
+@projects_bp.route("/<int:id>/tasks", methods=["POST"])
 def save_project_task(id: int):
     project = Project.query.filter(Project.id == id).first()
 
@@ -65,13 +68,25 @@ def save_project_task(id: int):
             "error": "El campo \"title\" es obligatorio"
         }), 400
     
+    task_args = {
+        "title": data.get("title"),
+        "description": data.get("description"),
+        "project_id": id
+    }
+
+    raw_status = data.get("status")
+
+    if raw_status is not None:
+        try:
+            task_args["status"] = Status(raw_status)
+        except ValueError:
+            valids_status = [s.value for s in Status]
+            return jsonify({
+                "error": f"El estado '{raw_status}' no es válido. Estados permitidos: {valids_status}"
+            }), 400
+
     try:
-        new_task =  Task(
-            title=data.get("title"),
-            description=data.get("description"),
-            status=Status(data.get("status")),
-            project_id=id
-        )
+        new_task =  Task(**task_args)
 
         db.session.add(new_task)
         db.session.commit()
@@ -84,49 +99,3 @@ def save_project_task(id: int):
         return jsonify({
             "error": str(e)
         }), 500
-    
-
-@app.route("/tasks/<int:id>", methods=["PUT"])
-def edit_project_task(id: int):
-    task = Task.query.filter(Task.id == id).first()
-
-    if not task:
-        return jsonify({
-            "error": "Project Task not found"
-        }), 404
-
-    data = request.get_json()
-
-    if not data or not data.get("status"):
-        return jsonify({
-            "error": "El campo \"status\" es obligatorio"
-        }), 400
-    
-    try:
-        new_status = Status(data.get("status"))
-        task.status = new_status
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "error": str(e)
-        }), 500
-
-    return jsonify(
-        task.to_dict()
-    ), 200
-
-
-@app.route("/tasks/<int:id>", methods=["DELETE"])
-def delete_project_task(id: int):
-    task = Task.query.filter(Task.id == id).first()
-
-    if not task:
-        return jsonify({
-            "error": "Project Task not found"
-        }), 404
-    
-    db.session.delete(task)
-    db.session.commit()
-
-    return jsonify(), 204
